@@ -311,6 +311,34 @@ public final class AnisetteDataManager: @unchecked Sendable {
         AnisetteClient.validateLibrariesExist(at: libsDir)
     }
 
+    /// Reads the client identity an anisette v3 server provisions with, from `/v3/client_info`.
+    public static func fetchServerIdentity(from url: URL) async throws -> (clientInfo: String, userAgent: String) {
+        let identityURL = url.appendingPathComponent("v3").appendingPathComponent("client_info")
+        var request = URLRequest(url: identityURL)
+        request.timeoutInterval = Constants.Anisette.serverValidationTimeout
+        request.httpMethod = "GET"
+        #if canImport(Darwin)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        #endif
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard let http = response as? HTTPURLResponse, http.isSuccess,
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let clientInfo = json["client_info"] as? String,
+              let userAgent = json["user_agent"] as? String,
+              !clientInfo.isEmpty, !userAgent.isEmpty
+        else {
+            throw AnisetteError.badServerResponse(statusCode: status, payload: "Missing v3 client_info / user_agent")
+        }
+
+        // These values become request headers, so a server must not be able to inject extra ones.
+        guard !clientInfo.contains(where: \.isNewline), !userAgent.contains(where: \.isNewline) else {
+            throw AnisetteError.badServerResponse(statusCode: status, payload: "Malformed v3 client_info")
+        }
+        return (clientInfo, userAgent)
+    }
+
     public static func validateServer(url: URL, strict: Bool = false) async -> Bool {
         let v3URL = url.appendingPathComponent("v3").appendingPathComponent("client_info")
         var v3Req = URLRequest(url: v3URL)
@@ -433,8 +461,22 @@ public final class AnisetteDataManager: @unchecked Sendable {
             }
         }
 
-        let clientInfo = headers?.clientInfo ?? Constants.Anisette.defaultClientInfo
-        let client = try await getClient(for: resolvedMode, clientInfo: clientInfo)
+        var clientInfo = headers?.clientInfo ?? Constants.Anisette.defaultClientInfo
+        var userAgent = headers?.userAgent ?? Constants.Anisette.defaultUserAgent
+
+        // A v3 server provisions the machine identity with its own ADI, and Apple rejects the
+        // `finishMachineProvisioning` POST (HTTP 401) when the request declares a different
+        // client than the one that produced the cpim. Adopt the server's pair unless the caller
+        // pinned its own. Needs proper testing: servers declaring an Android identity now get
+        // HTTP 503 from Apple, so this only helps servers that serve Windows ADI.
+        if headers?.clientInfo == nil, case .remote(let server) = resolvedMode,
+           let pair = try? await Self.fetchServerIdentity(from: server) {
+            clientInfo = pair.clientInfo
+            userAgent = pair.userAgent
+            debugLog("[AnisetteDataManager] Declaring server identity: \(clientInfo) / \(userAgent)")
+        }
+
+        let client = try await getClient(for: resolvedMode, clientInfo: clientInfo, userAgent: userAgent)
 
         do {
             let (rawHeaders, newBlob) = try await client.getAnisetteData(
@@ -470,14 +512,14 @@ public final class AnisetteDataManager: @unchecked Sendable {
         }
     }
 
-    private func getClient(for mode: AnisetteMode, clientInfo: String) async throws -> AnisetteClient {
+    private func getClient(for mode: AnisetteMode, clientInfo: String, userAgent: String) async throws -> AnisetteClient {
         switch mode {
         case .remote(let server):
             try FileManager.default.createDirectory(at: provisioningDir, withIntermediateDirectories: true)
             return try AnisetteClient(
                 provisioningDir: provisioningDir,
                 clientInfo: clientInfo,
-                userAgent: Constants.Anisette.defaultUserAgent,
+                userAgent: userAgent,
                 lookupURL: Constants.Anisette.URLs.grandSlamLookup,
                 requiredLibraries: Constants.Anisette.Libraries.requiredNames,
                 provider: RemoteAnisetteDataProvider(serverURL: server)
