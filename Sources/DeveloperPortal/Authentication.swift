@@ -592,7 +592,7 @@ public extension DeveloperPortal {
     private struct TwoFactorAuthContext {
         let dsid: String
         let idmsToken: String
-        let anisetteData: AnisetteData
+        var anisetteData: AnisetteData
         let xcodeVersion: String
     }
 
@@ -621,6 +621,7 @@ public extension DeveloperPortal {
                             verificationHandler: VerificationHandler?,
                             codeAlreadySent: Bool = false) async throws
     {
+        var context = context
         guard let verificationHandler else {
             debugLog("[SideSign] 2FA required but no verificationHandler provided")
             throw DeveloperPortalError.requiresTwoFactorAuthentication
@@ -661,6 +662,10 @@ public extension DeveloperPortal {
                     currentRequest = .voice(phoneNumbers: phoneNumbers, activeID: result.phoneID, error: nil)
 
                 case .verificationCode(let code):
+                    if let refresh = anisetteDataRefreshHandler {
+                        debugLog("[SideSign] Refreshing anisette data before validating the security code.")
+                        context.anisetteData = try await refresh()
+                    }
                     guard let channel = activeChannel else {
                         debugLog("[SideSign] Unexpected verification code returned before delivery method was selected.")
                         throw DeveloperPortalError.authenticationHandshakeFailed(cause: "Unexpected verification code returned before a delivery method was selected.")
