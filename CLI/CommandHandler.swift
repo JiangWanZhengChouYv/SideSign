@@ -1472,7 +1472,7 @@ public enum CommandHandler {
             appleID: appleID,
             password: pwd,
             anisetteData: anisetteData,
-            xcodeVersion: "26.0",
+            xcodeVersion: "27.0 (27A5218g)",
             verificationHandler: handleCLI2FA
         )
 
