@@ -288,6 +288,82 @@ public final class AnisetteDataManager: @unchecked Sendable {
         self.activeMode = mode
     }
 
+    private struct ResyncContext {
+        let serverURL: URL
+        let identifier: UUID
+        let adiPb: Data
+        let current: AnisetteData
+    }
+
+    // Class-level because callers build their own AnisetteDataManager when fetching headers but
+    // resynchronize later from the authentication layer, which may only reach the shared one.
+    nonisolated(unsafe) private static var resyncContext: ResyncContext?
+    nonisolated(unsafe) private static var resyncLock = NSLock()
+
+    /// Exchanges the `X-Apple-I-MD-DATA` Apple returns in a `hsc 434` status for freshly
+    /// synchronized headers from the same v3 server that minted the current identity.
+    public func resyncHeaders(sim: String) async throws -> AnisetteData {
+        try await postGetHeaders(sim: sim)
+    }
+
+    /// Asks the same v3 server for a new one-time password. Apple's `X-Apple-I-MD` is single-use,
+    /// so each further request after a 2FA round trip needs its own copy.
+    public func refreshHeaders() async throws -> AnisetteData {
+        try await postGetHeaders(sim: nil)
+    }
+
+    private func postGetHeaders(sim: String?) async throws -> AnisetteData {
+        guard let context = Self.resyncLock.withLock({ Self.resyncContext }) else {
+            throw AnisetteError.modeNotConfigured
+        }
+
+        let url = context.serverURL.appendingPathComponent("v3").appendingPathComponent("get_headers")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = Constants.Anisette.remoteRequestTimeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        #if canImport(Darwin)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        #endif
+
+        var payload: [String: String] = [
+            "identifier": context.identifier.uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
+            "adi_pb": context.adiPb.base64EncodedString()
+        ]
+        if let sim {
+            payload["sim"] = sim
+            payload["device_id"] = context.current.deviceID
+            payload["md_lu"] = context.current.localUserID
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+
+        guard let http = response as? HTTPURLResponse, http.isSuccess, let json,
+              json["result"] != "GetHeadersError",
+              let oneTimePassword = json[Constants.Anisette.Headers.oneTimePassword],
+              let machineID = json[Constants.Anisette.Headers.machineID]
+        else {
+            throw AnisetteError.badServerResponse(statusCode: status, payload: json?["message"] ?? "Response was missing MD headers.")
+        }
+
+        var resynced = context.current
+        resynced.oneTimePassword = oneTimePassword
+        resynced.machineID = machineID
+        if let routingInfo = json[Constants.Anisette.Headers.routingInfo] {
+            resynced.routingInfo = routingInfo
+        }
+        resynced.clientTime = ISO8601DateFormatter().string(from: Date())
+
+        Self.resyncLock.withLock {
+            Self.resyncContext = ResyncContext(serverURL: context.serverURL, identifier: context.identifier, adiPb: context.adiPb, current: resynced)
+        }
+        debugLog("[AnisetteDataManager] Refreshed anisette headers with \(context.serverURL.absoluteString)")
+        return resynced
+    }
+
     public var localLibsDir: URL {
         baseAnisetteDirectory.appendingPathComponent(Constants.Anisette.localLibsSubdirectory, isDirectory: true)
     }
@@ -495,6 +571,12 @@ public final class AnisetteDataManager: @unchecked Sendable {
                     newAdiBlob: newBlob,
                     timestamp: Date()
                 )
+
+                if let blob = newBlob ?? existingAdiBlob {
+                    Self.resyncLock.withLock {
+                        Self.resyncContext = ResyncContext(serverURL: serverURL, identifier: identifier, adiPb: blob, current: anisetteData)
+                    }
+                }
             }
 
             return (anisetteData, newBlob)

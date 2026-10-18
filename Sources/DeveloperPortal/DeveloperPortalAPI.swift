@@ -238,9 +238,40 @@ public extension DeveloperPortalAPI {
     }
 }
 
+/// Apple returned `hsc 434`: the anisette headers must be resynchronized before the GrandSlam
+/// handshake can continue. Carries the `X-Apple-I-MD-DATA` blob to hand back to the server.
+public struct AnisetteResyncRequired: Error, Sendable {
+    public let sim: String
+
+    public init(sim: String) {
+        self.sim = sim
+    }
+}
+
 public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
 
     public static let shared = DeveloperPortal()
+
+    public typealias AnisetteResyncHandler = @Sendable (String) async throws -> AnisetteData
+
+    /// Invoked when GrandSlam asks to resynchronize; returns freshly minted anisette data for the
+    /// same machine identity. Without it, a `hsc 434` response surfaces as an authentication error.
+    public var anisetteResyncHandler: AnisetteResyncHandler? {
+        get { resyncLock.withLock { storedResyncHandler } }
+        set { resyncLock.withLock { storedResyncHandler = newValue } }
+    }
+    private let resyncLock = NSLock()
+    private nonisolated(unsafe) var storedResyncHandler: AnisetteResyncHandler?
+
+    public typealias AnisetteRefreshHandler = @Sendable () async throws -> AnisetteData
+
+    /// Apple's `X-Apple-I-MD` is single-use, so the steps that follow a 2FA round trip need their
+    /// own copy rather than the one the user spent a minute typing a code over.
+    public var anisetteDataRefreshHandler: AnisetteRefreshHandler? {
+        get { resyncLock.withLock { storedRefreshHandler } }
+        set { resyncLock.withLock { storedRefreshHandler = newValue } }
+    }
+    private nonisolated(unsafe) var storedRefreshHandler: AnisetteRefreshHandler?
 
     public var customHeaders: SideSignHeaders {
         get { headersLock.withLock { cachedCustomHeaders } }
