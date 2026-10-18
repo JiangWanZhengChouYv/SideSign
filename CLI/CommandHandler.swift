@@ -1467,12 +1467,18 @@ public enum CommandHandler {
         }
 
         let portal = DeveloperPortal()
+        portal.anisetteResyncHandler = { sim in
+            try await AnisetteDataManager.shared.resyncHeaders(sim: sim)
+        }
+        portal.anisetteDataRefreshHandler = {
+            try await AnisetteDataManager.shared.refreshHeaders()
+        }
         print("Authenticating with Apple Developer Portal...")
         let authSession = try await portal.authenticate(
             appleID: appleID,
             password: pwd,
             anisetteData: anisetteData,
-            xcodeVersion: "27.0 (27A5218g)",
+            xcodeVersion: "26.0 (26A242)",
             verificationHandler: handleCLI2FA
         )
 
