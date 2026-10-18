@@ -64,7 +64,7 @@ public extension DeveloperPortal {
         ]
 
         debugLog("[SideSign] Sending authentication 'init' request...")
-        let initResponse = try await sendAuthenticationRequest(parameters: initParameters, anisetteData: anisetteData)
+        let initResponse = try await sendAuthenticationRequest(parameters: initParameters, anisetteData: anisetteData, xcodeVersion: xcodeVersion)
 
         guard let c = initResponse["c"] as? String,
               let salt = initResponse["s"] as? Data,
@@ -127,7 +127,7 @@ public extension DeveloperPortal {
             "u": sanitizedAppleID
         ]
 
-        let completeResponseDictionary = try await sendAuthenticationRequest(parameters: completeParameters, anisetteData: anisetteData)
+        let completeResponseDictionary = try await sendAuthenticationRequest(parameters: completeParameters, anisetteData: anisetteData, xcodeVersion: xcodeVersion)
         debugLog("[SideSign] SRP complete step finished.")
 
         guard let encryptedData = completeResponseDictionary["spd"] as? Data else {
@@ -287,7 +287,7 @@ public extension DeveloperPortal {
             "u": dsid
         ]
 
-        let fetchedToken = try await fetchAuthToken(app: app, parameters: appTokensParameters, sessionKey: sessionKey, anisetteData: anisetteData)
+        let fetchedToken = try await fetchAuthToken(app: app, parameters: appTokensParameters, sessionKey: sessionKey, anisetteData: anisetteData, xcodeVersion: xcodeVersion)
         let session = Session(
             dsid: dsid,
             authToken: fetchedToken.token,
@@ -302,7 +302,7 @@ public extension DeveloperPortal {
         return AuthSession(account: account, session: session)
     }
 
-    func sendAuthenticationRequest(parameters requestParameters: [String: any Sendable], anisetteData: AnisetteData) async throws -> [String: any Sendable] {
+    func sendAuthenticationRequest(parameters requestParameters: [String: any Sendable], anisetteData: AnisetteData, xcodeVersion: String) async throws -> [String: any Sendable] {
         let requestURL = Constants.URLs.grandSlamAuth
         let h = customHeaders
 
@@ -317,11 +317,15 @@ public extension DeveloperPortal {
         request.httpMethod = "POST"
         request.httpBody = plistData
 
+        // Apple rejects GrandSlam when the declared client differs from the ADI that produced
+        // X-Apple-I-MD, so the anisette data's own identity wins over the configured one.
         let headers: [String: String] = [
             "Content-Type": "text/x-xml-plist",
             "X-MMe-Client-Info": anisetteData.clientInfo,
-            "Accept": "*/*",
-            "User-Agent": h.grandSlam.userAgent,
+            "Accept": "text/x-xml-plist",
+            "User-Agent": anisetteData.userAgent.isEmpty ? h.grandSlam.userAgent : anisetteData.userAgent,
+            "X-Apple-App-Info": h.grandSlam.authApp,
+            "X-Xcode-Version": xcodeVersion,
             "Connection": "close"
         ]
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
@@ -386,8 +390,8 @@ public extension DeveloperPortal {
         let timeToLive: TimeInterval?
     }
 
-    private func fetchAuthToken(app: String, parameters: [String: any Sendable], sessionKey: Data, anisetteData: AnisetteData) async throws -> FetchedAuthToken {
-        let responseDictionary = try await sendAuthenticationRequest(parameters: parameters, anisetteData: anisetteData)
+    private func fetchAuthToken(app: String, parameters: [String: any Sendable], sessionKey: Data, anisetteData: AnisetteData, xcodeVersion: String) async throws -> FetchedAuthToken {
+        let responseDictionary = try await sendAuthenticationRequest(parameters: parameters, anisetteData: anisetteData, xcodeVersion: xcodeVersion)
 
         guard let encryptedToken = responseDictionary["et"] as? Data else {
             let payload = prettyJSONString(from: responseDictionary)

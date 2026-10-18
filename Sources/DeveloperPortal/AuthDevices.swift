@@ -75,7 +75,7 @@ public extension DeveloperPortal {
             "o": "listDevices",
             "u": session.dsid
         ]
-        let responseDict = try await sendAuthenticationRequest(parameters: parameters, anisetteData: session.anisetteData)
+        let responseDict = try await sendAuthenticationRequest(parameters: parameters, anisetteData: session.anisetteData, xcodeVersion: session.xcodeVersion)
         if let devicesList = responseDict["devices"] as? [[String: Any]] {
             return devicesList.compactMap { dict in
                 guard let id = (dict["id"] as? String) ?? (dict["deviceId"] as? String) else { return nil }
@@ -139,7 +139,7 @@ public extension DeveloperPortal {
             "deviceId": id,
             "u": session.dsid
         ]
-        let responseDict = try await sendAuthenticationRequest(parameters: parameters, anisetteData: session.anisetteData)
+        let responseDict = try await sendAuthenticationRequest(parameters: parameters, anisetteData: session.anisetteData, xcodeVersion: session.xcodeVersion)
         let success = (responseDict["status"] as? Int == 0) || (responseDict["ec"] as? Int == 0) || responseDict["Status"] != nil
         debugLog("[SideSign] removeAuthDevice GSA result: \(success)")
         return success
