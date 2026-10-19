@@ -215,6 +215,9 @@ public enum AnisetteError: LocalizedError, Sendable {
         case .invalidAnisetteData:
             return "Failed to construct valid AnisetteData from local or remote Anisette headers."
         case .badServerResponse(let statusCode, let payload):
+            if let failure = AppleFailure(detail: payload, statusCode: statusCode) {
+                return failure.explanation
+            }
             return "Anisette server returned HTTP status \(statusCode): \(payload)"
         case .noServersConfigured:
             return "No working anisette servers configured."

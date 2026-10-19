@@ -36,6 +36,9 @@ public enum DeveloperPortalError: Error, LocalizedError, Sendable {
     case tooManyAttempts(cause: String)
     case accountRepairRequired(url: URL?, message: String)
     case invalid2FAResponse(cause: String? = nil)
+    /// The Apple Developer portal session behind `Session` is no longer accepted. Recoverable by
+    /// authenticating again; the credentials are already held by the caller.
+    case sessionExpired
 
     public var errorDescription: String? {
         switch self {
@@ -66,6 +69,7 @@ public enum DeveloperPortalError: Error, LocalizedError, Sendable {
         case .tooManyCertificates(let cause):                   return "Maximum number of certificates reached: \(cause)"
         case .accountRepairRequired(_, let message):            return message.isEmpty ? Constants.defaultAccountRepairMessage : message
         case .invalid2FAResponse(let cause):                    return cause ?? "Invalid two-factor authentication response."
+        case .sessionExpired:                                   return AppleFailure.sessionExpired.explanation
         }
     }
 }
@@ -88,7 +92,12 @@ public enum ServerError: LocalizedError, CustomStringConvertible, Sendable {
     public var errorDescription: String? {
         switch self {
         case .badServerResponse(let reason, let jsonPayload): return "Invalid server response: \(reason)\n\(jsonPayload)"
-        case .invalidResponseFormat(let rawPayload):          return "Invalid server response: unparseable format\n\(rawPayload)"
+        case .invalidResponseFormat(let rawPayload):
+            // Apple's throttle page is several lines of HTML; the title is the only readable part.
+            if let title = AppleFailure.titleOfHTML(rawPayload) {
+                return "\(AppleFailure.throttledByApple.explanation)\n(HTTP page said: \(title))"
+            }
+            return "Invalid server response: unparseable format\n\(rawPayload)"
         case .missingKey(let key, let jsonPayload):           return "Invalid server response: missing required key '\(key)'\n\(jsonPayload)"
         case .underlyingError(let code, let message):         return "\(message) (\(code))"
         }

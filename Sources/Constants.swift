@@ -174,6 +174,9 @@ public enum GrandSlamAuthErrorCodes {
 
 public enum DeveloperPortalResultCodes {
     public static let success                             = 0
+    /// Returned by the legacy endpoints when the portal session died. Free personal accounts hit
+    /// this within minutes of signing in.
+    public static let sessionExpired                      = 1100
     public static let invalidCertificateRequest           = 3250
     public static let appGroupDoesNotExist                = 35
     public static let deviceAlreadyRegistered             = 35

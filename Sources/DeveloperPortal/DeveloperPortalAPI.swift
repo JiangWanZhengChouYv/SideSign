@@ -401,7 +401,7 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
             ?? (try? JSONDecoder().decode(DeveloperPortalStatusResponse.self, from: data)) {
             if let errors = status.errors, let firstError = errors.first, let detail = firstError.detail {
                 debugLog("[SideSign] processResponse parsed Apple developer API error: \(detail)")
-                throw ServerError.underlyingError(code: -1, message: detail)
+                throw developerPortalError(detail: detail)
             }
             if let code = status.resultCode, code != DeveloperPortalResultCodes.success {
                 let message = status.userString ?? status.resultString ?? status.errorString ?? "Apple Developer Portal Error"
@@ -410,7 +410,7 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
                     throw customError
                 }
                 debugLog("[SideSign] processResponse error: \(message) (code: \(code))")
-                throw ServerError.underlyingError(code: code, message: message)
+                throw developerPortalError(resultCode: code, message: message)
             }
         }
 
@@ -515,7 +515,7 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
         if let status = try? JSONDecoder().decode(DeveloperPortalStatusResponse.self, from: data) {
             if let errors = status.errors, let firstError = errors.first, let detail = firstError.detail {
                 debugLog("[SideSign] processResponse parsed Apple developer API error: \(detail)")
-                throw ServerError.underlyingError(code: -1, message: detail)
+                throw developerPortalError(detail: detail)
             }
             if let code = status.resultCode, code != DeveloperPortalResultCodes.success {
                 let message = status.userString ?? status.resultString ?? status.errorString ?? "Apple Developer Portal Error"
@@ -524,7 +524,7 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
                     throw customError
                 }
                 debugLog("[SideSign] processResponse error: \(message) (code: \(code))")
-                throw ServerError.underlyingError(code: code, message: message)
+                throw developerPortalError(resultCode: code, message: message)
             }
         }
 
