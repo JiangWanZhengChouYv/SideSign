@@ -81,7 +81,9 @@ public extension Feature {
         // Probe for AirStore: ask Apple for the increased memory limit on a personal team too.
         // The entitlements UI already treats it as free-team allowed (Entitlement.freeEntitlements);
         // without this the portal is never asked, so the profile can never carry it.
-        .increasedMemoryLimit
+        .increasedMemoryLimit,
+        .extendedVirtualAddressing,
+        .increasedDebuggingMemoryLimit
     ]
 
     static let paidFeatures: Set<Feature> = [
