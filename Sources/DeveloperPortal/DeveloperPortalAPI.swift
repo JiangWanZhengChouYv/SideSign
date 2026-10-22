@@ -429,6 +429,7 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
     // JSON Services Request Dispatcher
     func sendServicesRequest<T: Decodable>(_ originalRequest: URLRequest,
                                            additionalParameters: [String: String]? = nil,
+                                           body: Data? = nil,
                                            session apiSession: Session,
                                            team: Team,
                                            includeAnisette: Bool = true,
@@ -439,16 +440,27 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
         var items = [URLQueryItem(name: "teamId", value: team.identifier)]
         additionalParameters?.forEach { items.append(.init(name: $0, value: $1)) }
 
-        var comps = URLComponents()
-        comps.queryItems = items
-        let query = comps.query ?? ""
-
-        let bodyData = try JSONSerialization.data(withJSONObject: ["urlEncodedQueryParams": query])
         let methodOverride = request.httpMethod ?? "GET"
 
-        request.httpMethod = "POST"
-        request.httpBody = bodyData
-        request.setValue(methodOverride, forHTTPHeaderField: "X-HTTP-Method-Override")
+        if let payload = body {
+            // A request carrying its own JSON:API document cannot ride the tunnel below, which only
+            // forwards query parameters. Keep the verb, send the document, and put teamId in the URL.
+            if var comps = request.url.flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) }) {
+                comps.queryItems = (comps.queryItems ?? []) + items
+                request.url = comps.url
+            }
+            request.httpBody = payload
+        } else {
+            var comps = URLComponents()
+            comps.queryItems = items
+            let query = comps.query ?? ""
+
+            let bodyData = try JSONSerialization.data(withJSONObject: ["urlEncodedQueryParams": query])
+
+            request.httpMethod = "POST"
+            request.httpBody = bodyData
+            request.setValue(methodOverride, forHTTPHeaderField: "X-HTTP-Method-Override")
+        }
 
         let h = customHeaders
         var headers: [String: String] = [

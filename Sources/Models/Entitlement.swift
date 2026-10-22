@@ -323,6 +323,24 @@ extension Entitlement: Identifiable {
     public var name: String { displayName }
 }
 
+public extension Entitlement {
+    /// The capability the portal has to have switched on for Apple to put this entitlement into a
+    /// provisioning profile, or nil when the legacy `ios/updateAppId.action` form call already knows
+    /// it (see `Feature(entitlement:)`). It does not: that endpoint answers with a fixed set of
+    /// feature keys and drops anything else, which is how a requested memory limit used to vanish
+    /// without an error. Only `GET /services/v1/capabilities` says which of these a given team is
+    /// offered, so callers must check the id against that list before sending it -- a wrong guess
+    /// here then shows up as a skipped capability in the log rather than as a silent no-op.
+    var capabilityID: String? {
+        switch self {
+        case .increasedMemoryLimit:          return "INCREASED_MEMORY_LIMIT"
+        case .extendedVirtualAddressing:     return "EXTENDED_VIRTUAL_ADDRESSING"
+        case .increasedDebuggingMemoryLimit: return "INCREASED_DEBUGGING_MEMORY_LIMIT"
+        default:                             return nil
+        }
+    }
+}
+
 public enum EntitlementValueType: String, Codable, Sendable, CaseIterable, Identifiable {
     case boolean        = "Boolean"
     case string         = "String"

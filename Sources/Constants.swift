@@ -45,6 +45,8 @@ public enum Constants {
         public static let developerPortalV1Base     = URL(string: "https://developer.apple.com/services-account/\(Constants.DeveloperServices.servicesProtocolVersion)/")!
         public static let certificatesDeveloperServices2 = URL(string: "certificates", relativeTo: developerServicesV1Base)!
         public static let certificatesDeveloperPortal    = URL(string: "certificates", relativeTo: developerPortalV1Base)!
+        public static let capabilities                   = URL(string: "capabilities", relativeTo: developerServicesV1Base)!
+        public static let bundleIDs                      = URL(string: "bundleIds", relativeTo: developerServicesV1Base)!
         public static let grandSlamAuth             = URL(string: "https://gsa.apple.com/grandslam/GsService2")!
         public static let grandSlamValidate         = URL(string: "https://gsa.apple.com/grandslam/GsService2/validate")!
         public static let trustedDevice             = URL(string: "https://gsa.apple.com/auth/verify/trusteddevice")!
