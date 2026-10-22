@@ -96,6 +96,12 @@ public struct AppBundleSigner: CodeSignerAPI, Sendable {
             verboseLog("[SideSign] Original profile entitlements: \(filteredEntitlements)")
 
             let applicationEntitlements = app.entitlements
+            // An unsigned ipa declares nothing, so there is no declaration left to intersect the
+            // profile against and every key below would drop out except the three that are always
+            // kept -- the app then installs with its app groups and memory entitlements stripped.
+            // The profile is Apple's own statement of what this bundle id may carry, so when the
+            // signature gives us nothing to compare with, sign the profile as it came.
+            let declaresNothing = applicationEntitlements.isEmpty
 
             for (key, _) in filteredEntitlements {
                 if let applicationValue = applicationEntitlements[key] {
@@ -116,7 +122,8 @@ public struct AppBundleSigner: CodeSignerAPI, Sendable {
                     }
                 } else if key != "application-identifier"               &&
                           key != "com.apple.developer.team-identifier"  &&
-                          key != "get-task-allow" 
+                          key != "get-task-allow"                       &&
+                          !declaresNothing
                 {
                     filteredEntitlements.removeValue(forKey: key)
                 }
