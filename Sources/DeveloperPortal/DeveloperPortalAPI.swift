@@ -444,9 +444,12 @@ public final class DeveloperPortal: DeveloperPortalAPI, Sendable {
 
         if let payload = body {
             // A request carrying its own JSON:API document cannot ride the tunnel below, which only
-            // forwards query parameters. Keep the verb, send the document, and put teamId in the URL.
-            if var comps = request.url.flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) }) {
-                comps.queryItems = (comps.queryItems ?? []) + items
+            // forwards query parameters, and it must keep the URL exactly as given: Apple answers a
+            // PATCH to bundleIds with "The parameter 'teamId' can not be used with this request" the
+            // moment teamId is appended -- that endpoint takes the team from the document instead.
+            if let extra = additionalParameters, !extra.isEmpty,
+               var comps = request.url.flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) }) {
+                comps.queryItems = (comps.queryItems ?? []) + extra.map { URLQueryItem(name: $0, value: $1) }
                 request.url = comps.url
             }
             request.httpBody = payload
