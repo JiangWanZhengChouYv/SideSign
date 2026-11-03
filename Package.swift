@@ -32,7 +32,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-crypto.git",    exact: "4.3.1"),
 
-        .package(url: "https://github.com/mahee96/CodeSignKit.git",   branch: "main"),
+        .package(url: "https://github.com/JiangWanZhengChouYv/CodeSignKit.git", branch: "airstore/guest-page-size"),
         .package(url: "https://github.com/mahee96/GSACryptoKit.git",  branch: "main"),
         .package(url: "https://github.com/SideStore/libdeflate",      branch: "master"),
         .package(url: "https://github.com/mahee96/AnisetteKit.git",   branch: "main"),
