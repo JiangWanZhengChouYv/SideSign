@@ -13,10 +13,10 @@
     {
       "identity" : "codesignkit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mahee96/CodeSignKit.git",
+      "location" : "https://github.com/JiangWanZhengChouYv/CodeSignKit.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "d0c67710fda9a2646b9e829cb2cf443892728371"
+        "branch" : "airstore/guest-page-size",
+        "revision" : "7332c0a6d0c881b3595d7521d33383168e641d42"
       }
     },
     {
